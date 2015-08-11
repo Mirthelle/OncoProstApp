@@ -2,109 +2,84 @@
 library(shiny)
 library(RMySQL)
 source("functions_library.R")
-source("connectionDB.R")
+source("connection.R")
+source("list.gnames.R")
 
 #######################################
-## CÓDIGO DE LA APLICACIÓN WEB SHINY ##
+##     ONCOPROSTAPP SHINY CODE       ##
 #######################################
+## Creating getting database connection (function in conection.R)
+con  <- getConnection()
 
-## Crear o usar conexión abierta de MySQL (función en global.R)
-connection <- getConnection()
-
-## Código de las aplicaciones y funciones que se ejecutarán.
 shinyServer(function(input, output) {
-    #Obtener los tipos de tumores y convertirlos en una lista.
-    statement_tumor<-sprintf("SELECT distinct tumor_type FROM taylor_21036")    
-    tumor_type <- dbGetQuery(connection, statement_tumor)
-    
-    # Obteber todos los distintos nombres de miRNAs y convertirlos en una lista.
-    statement_id_gpl <- sprintf("SELECT distinct id_gpl FROM taylor_exp_21036 order by id_gpl asc")  
-    did_gpl <- dbGetQuery(connection, statement_id_gpl)
-    #como devuelve un data.frame, cojo sólo la 1ª columna para construir la select input
-    
-    # Crear una lista con todos los select input que se quieren mostrar.
-    #se la paso a renderUI, ya que sólo puedo llamarlo una vez
-    input_list <- list(selectizeInput("gen", "Choose microRNA", choices = did_gpl[,1], multiple = FALSE, options=NULL),
-                       radioButtons("result_by", label = h4("Show results by"),
-                                    choices = list("Disease Status" = "disease_status", 
-                                                   "Gleason Grade" = "biopsy_gleason_grade",
-                                                   "Pathological Stage" = "pathological_stage"
-                                                   ), 
-                                    selected = "disease_status")
-                       )
-#                        checkboxGroupInput("tumor_type", label = h4("Tipos de tumor a analizar"),
-#                                           choices = list("Primary tumor" = "Primary tumor",
-#                                                          "Metastasis" = "Metastasis",
-#                                                          "Vcap" = "Vcap"
-#                                                          )
 
-                                                              
+  ## Gene list selection for SINGLE GENE ANALYSIS
+  output$gnames_list <- renderUI ({
+    if (is.null(input$database))
+      return()
     
-    output$choose_inputs <- renderUI({input_list})   # Guardamos todos los inputs en una lisa y lo pasamos a renderUI
-                                                     # porque solo se puede llamar 1 vez.
-   
-    #dibujamos el boxplot con las opciones elegidas
-    formulaText <- reactive({
-      paste(input$gen,"~",input$result_by)       
-   })
-    
-       # Devuelve formula text para mostrarlo como caption en el gráfico
-    output$caption <- renderText({
-     formulaText()
-    })
+    switch(input$database,
+           "none" = selectInput("gnames",
+                                "Select gene name:",
+                                choices = c()),
+           "grasso_GPL6480_feature" = selectInput("gnames", 
+                                                  "Select gene name:",
+                                                  choices = list.gnames("grasso_GPL6480_feature")),
+           "taylor_GPL10264_feature" = selectInput("gnames",
+                                                   "Select gene name:",
+                                                   choices = list.gnames("taylor_GPL10264_feature")),
+           "taylor_GPL8227_feature" = selectInput("gnames",
+                                                  "Select miRNA name:",
+                                                  choices = list.gnames("taylor_GPL8227_feature")),
+           "tomlins_GPL2013_feature" = selectInput("gnames",
+                                                   "Select gene name:",
+                                                   choices = list.gnames("tomlins_GPL2013_feature"))
+           )
+          
+  })
+  
+  ## DRAWING BOXPLOT
+  df_bp <- reactive ({
 
-   # Generate a plot of the requested variable      
-    output$TaylorBoxPlot <- renderPlot({
-      if (is.null(input$gen))
-        return()
-      #browser()
-      #View(exp_boxplot())
-      #browser()      
-      #View(input$gen)
-  
-     # Generate a summary of the data
-     make_summaryQuery <- reactive({
-     summary_query<-paste0("select geo_accession,last_update_date,contact_name,platform_id,description,data_processing from taylor_21036,taylor_exp_21036 where geo_accession=id_geoacc and id_gpl like '",input$gen,"' limit 5")
-     summary_query_get<-dbGetQuery(connection,summary_query)    
-     })
-     
-     output$summary <- renderTable({      
-     make_summaryQuery()
-      })
-     
-     query<-paste0("select ",input$result_by,",expvalue from taylor_21036,taylor_exp_21036 where geo_accession=id_geoacc and id_gpl like '",input$gen,"' order by ",input$result_by,"")                    
-     #View(query)   
-     exp_boxplot<-dbGetQuery(connection,query)
-     class(exp_boxplot)
-    df_final_boxplot<-df_nirvana_boxplot.build_df_boxplot(exp_boxplot,group_by=input$result_by)
-     #browser()
+    # Getting database name
+    table <- unlist(strsplit(input$database, "[_]"))
+    table <- paste(table[1], "_", table[2], sep='')
     
-  # Estadísticos descriptivos
-  output$descriptive_statistic <- renderPrint({
-        summary(df_final_boxplot)
-     })
+    # Query for obtaining groups and expression values
+    queryBP <- paste0("SELECT ", input$group_by, ", expr_value FROM ", table, "_pheno, ", 
+                      table, "_expr WHERE geo_accession=gsm_id AND spot_id IN (SELECT probe_id FROM ", 
+                      table, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
+    expr_boxplot <- dbGetQuery(con, queryBP)
   
-  # Análisis t student (t test)
-    grupos  <- c("disease_status", "clint_stage", "biopsy_gleason_grade" )
-    output$ttest <- renderPrint({
-      for (i in grupos){
-        df_ttest <- df_nirvana_boxplot.build_df_boxplot(exp_boxplot, i)
-        i
-        df_ttest  <- df_ttest[,1]
-        df_test <- na.exclude(df_ttest)
-        # Añadir if para que solo seleccione columnas con más de 1 elemento, pq si no da error.
-        t.test(df_test)
-      }
-    })
+    df_boxplot <- df_boxplot.build_df_boxplot(expr_boxplot, group_by=input$group_by)
+    return(df_boxplot)
+  })
   
-     par(mar = c(14,3,3,2))
-      boxplot_title<-paste(input$gen,"~",input$result_by) 
-      boxplot(df_final_boxplot,col="lightblue",main=boxplot_title,las=2)
-     
-      
-    })    
-   
+  output$boxplot <- renderPlot ({
     
-    #dbDisconnect(connection)
+#     table <- unlist(strsplit(input$database, "[_]"))
+#     table <- paste(table[1], "_", table[2], sep='')
+#     
+#     # Query for obtaining groups and expression values
+#     queryBP <- paste0("SELECT ", input$group_by, ", expr_value FROM ", table, "_pheno, ", 
+#                       table, "_expr WHERE geo_accession=gsm_id AND spot_id IN (SELECT probe_id FROM ", 
+#                       table, "_feature WHERE gene_symbol LIKE '", input$gnames, "') ORDER BY ", 
+#                       input$group_by, " ASC")
+#     expr_boxplot <- dbGetQuery(con, queryBP)
+#     
+#     df_boxplot <- df_boxplot.build_df_boxplot(expr_boxplot, group_by=input$group_by)
+    
+    boxplot(df_bp(), col="violetred4", main=paste(input$gnames, "by", input$group_by), 
+            ylab="Expression values", las=2)
+  })
+  
+#   output$text <- renderPrint({
+#     input$gnames
+#   })
+#   
+  output$summary <- renderPrint({
+    summary(df_bp())
+  })
+ 
 })
 

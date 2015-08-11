@@ -7,34 +7,103 @@ source("server.R")
 
 shinyUI(fluidPage(
   
-  ## Título de la App
-  titlePanel("OncoNirvana 2.0"),
+  ## Apps title
+  titlePanel("OncoProstApp"),
   
-  navbarPage("MENU"),
-  
-  sidebarLayout(
-    sidebarPanel(
-      #el objeto uiOutuput lo obtengo del servidor
-      uiOutput("choose_inputs")     
-      ),
-    
-    mainPanel(   
-      tabsetPanel(             
-        tabPanel("BoxPlot",                 
-                 plotOutput("TaylorBoxPlot", height = "400px")
-                 ),
-        tabPanel("Descriptive statistics",
-                 verbatimTextOutput("descriptive_statistic"),
-                 tags$style(type='text/css', "statistics {background-color: rgba(0,0,255,0.10); color: black;}")
-                 ),
-        tabPanel("T test",
-                 verbatimTextOutput("ttest")
-                 ),
-        tabPanel("Summary", tableOutput("summary"))
-      )
-          #h3(textOutput("caption")),
-          #plotOutput("TaylorBoxPlot",height = "400px")
-      
-    )
+  navbarPage("MENU",
+             #######################################
+             tabPanel("Single Gene/miRNA analysis",
+             #######################################
+                       sidebarLayout(
+                         sidebarPanel(
+                           
+                           # Database selection
+                           radioButtons("database", 
+                                        "Select a Prostate Cancer Database:",
+                                        c("None"="none",
+                                          "Grasso"="grasso_GPL6480_feature",
+                                          "Taylor (genes)"="taylor_GPL10264_feature",
+                                          "Taylor (miRNAs)"="taylor_GPL8227_feature",
+                                          "Tomlins"= "tomlins_GPL2013_feature"
+                                          )
+                                        ),
+                           # Gene/miRNA selection
+                           wellPanel(uiOutput("gnames_list")),
+                           
+                           # Group by selection
+                           wellPanel(radioButtons("group_by",
+                                                  "Show results by:",
+                                                  choices = c("Disease Status" = "disease_status",
+                                                              "Gleason Grade" = "gleason_grade_2",
+                                                              "Pathological Stage" = "pathological_stage"
+                                                              )
+                                                  )
+                                     )
+                           ),
+                         mainPanel(
+                           tags$p("Dynamic input value:"),
+                           verbatimTextOutput("text"),
+                           plotOutput("boxplot", height = "500px"),
+                           tags$p("Summary of the data:"),
+                           verbatimTextOutput("summary")
+                           )
+                         )
+                      ),
+             
+             ###########################################
+             tabPanel("Diferential expression analysis",
+             ###########################################
+                      sidebarLayout(
+                        sidebarPanel(
+                          radioButtons("database", 
+                                       "Prostate Cancer Database",
+                                       c("Grasso"="grasso",
+                                         "Taylor"="taylor",
+                                         "Tomlins"= "tomlins"
+                                       )
+                          )
+                        ),
+                        mainPanel(
+                        )
+                      )
+                      ),
+             
+             ##############################################
+             tabPanel("Gene - miRNA correlation analyisis",
+             ##############################################
+                      sidebarLayout(
+                        sidebarPanel(
+                          radioButtons("database", 
+                                       "Prostate Cancer Database",
+                                       c("Grasso"="grasso",
+                                         "Taylor"="taylor",
+                                         "Tomlins"= "tomlins"
+                                       )
+                          )
+                        ),
+                        mainPanel(
+                        )
+                      )
+                      ),
+             
+             #############################
+             tabPanel("Survival analysis",
+             #############################
+                      sidebarLayout(
+                        sidebarPanel(
+                          radioButtons("database", 
+                                       "Prostate Cancer Database",
+                                       c("Grasso"="grasso",
+                                         "Taylor"="taylor",
+                                         "Tomlins"= "tomlins"
+                                       )
+                          )
+                        ),
+                        mainPanel(
+                        )
+                      )
+                      )
+             
+             )
+  )
 )
-))
