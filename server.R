@@ -38,7 +38,7 @@ shinyServer(function(input, output) {
           
   })
   
-  ## DRAWING BOXPLOT
+  ## REACTIVE ENVIRONMENTS ##
   expr_df <- reactive ({
     # Getting database name
     table <- unlist(strsplit(input$database, "[_]"))
@@ -48,40 +48,60 @@ shinyServer(function(input, output) {
     queryBP <- paste0("SELECT ", input$group_by, ", expr_value FROM ", table, "_pheno, ", 
                       table, "_expr WHERE geo_accession=gsm_id AND spot_id IN (SELECT probe_id FROM ", 
                       table, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
-    expr_boxplot <- dbGetQuery(con, queryBP)
+    expr_boxplot <- as.data.frame(dbGetQuery(con, queryBP))
+    return(expr_boxplot)
+  })
+  
+  all_expr_df <- reactive ({
+    # Getting database name
+    table <- unlist(strsplit(input$database, "[_]"))
+    table <- paste(table[1], "_", table[2], sep='')
+    
+    # Query for obtaining groups and expression values
+    queryBP <- paste0("SELECT gleason_grade_2, pathological_stage, expr_value FROM ", table, "_pheno, ", 
+                      table, "_expr WHERE geo_accession=gsm_id AND spot_id IN (SELECT probe_id FROM ", 
+                      table, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
+    expr_boxplot <- as.data.frame(dbGetQuery(con, queryBP))
     return(expr_boxplot)
   })
   
   df_bp <- reactive ({
       df_boxplot <- df_boxplot.build_df_boxplot(expr_df(), group_by=input$group_by)
-    return(df_boxplot)
+      df_boxplot <- df_boxplot[, order(colnames(df_boxplot))]
+      return(df_boxplot)
   })
   
+  ## OUTPUTS ##
+  ## Drawing boxplot
   output$boxplot <- renderPlot ({
   
     boxplot(df_bp(), col="violetred4", main=paste(input$gnames, "by", input$group_by), 
             ylab="Expression values", las=2)
   })
   
+  ## Descriptive summary
+  output$summary <- renderPrint({
+    summary(df_bp())
+  })
+  
+  ## T test summary
   output$lm <- renderPrint ({
     fit <- lm(expr_value ~ get(input$group_by), data=expr_df())
     summary(fit)
   })
   
+  ## Anova summary  
   output$anova.test <- renderPrint({
-    fit <- lm(expr_value ~ get(input$group_by), data=expr_df())
-    print(paste("Anova test for ", input$group_by), quote=F)
+    fit <- lm(expr_value ~ gleason_grade_2 + pathological_stage, data=all_expr_df())
     anova(fit)
 
   })
   
-  output$text <- renderPrint({
-    colnames(expr_df())
-  })
+#   output$text <- renderPrint({
+#     df_bp()
+#   })
   
-  output$summary <- renderPrint({
-    summary(df_bp())
-  })
+
  
 })
 
