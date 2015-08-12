@@ -39,8 +39,7 @@ shinyServer(function(input, output) {
   })
   
   ## DRAWING BOXPLOT
-  df_bp <- reactive ({
-
+  expr_df <- reactive ({
     # Getting database name
     table <- unlist(strsplit(input$database, "[_]"))
     table <- paste(table[1], "_", table[2], sep='')
@@ -50,33 +49,36 @@ shinyServer(function(input, output) {
                       table, "_expr WHERE geo_accession=gsm_id AND spot_id IN (SELECT probe_id FROM ", 
                       table, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
     expr_boxplot <- dbGetQuery(con, queryBP)
+    return(expr_boxplot)
+  })
   
-    df_boxplot <- df_boxplot.build_df_boxplot(expr_boxplot, group_by=input$group_by)
+  df_bp <- reactive ({
+      df_boxplot <- df_boxplot.build_df_boxplot(expr_df(), group_by=input$group_by)
     return(df_boxplot)
   })
   
   output$boxplot <- renderPlot ({
-    
-#     table <- unlist(strsplit(input$database, "[_]"))
-#     table <- paste(table[1], "_", table[2], sep='')
-#     
-#     # Query for obtaining groups and expression values
-#     queryBP <- paste0("SELECT ", input$group_by, ", expr_value FROM ", table, "_pheno, ", 
-#                       table, "_expr WHERE geo_accession=gsm_id AND spot_id IN (SELECT probe_id FROM ", 
-#                       table, "_feature WHERE gene_symbol LIKE '", input$gnames, "') ORDER BY ", 
-#                       input$group_by, " ASC")
-#     expr_boxplot <- dbGetQuery(con, queryBP)
-#     
-#     df_boxplot <- df_boxplot.build_df_boxplot(expr_boxplot, group_by=input$group_by)
-    
+  
     boxplot(df_bp(), col="violetred4", main=paste(input$gnames, "by", input$group_by), 
             ylab="Expression values", las=2)
   })
   
-#   output$text <- renderPrint({
-#     input$gnames
-#   })
-#   
+  output$lm <- renderPrint ({
+    fit <- lm(expr_value ~ get(input$group_by), data=expr_df())
+    summary(fit)
+  })
+  
+  output$anova.test <- renderPrint({
+    fit <- lm(expr_value ~ get(input$group_by), data=expr_df())
+    print(paste("Anova test for ", input$group_by), quote=F)
+    anova(fit)
+
+  })
+  
+  output$text <- renderPrint({
+    colnames(expr_df())
+  })
+  
   output$summary <- renderPrint({
     summary(df_bp())
   })

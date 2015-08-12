@@ -20,12 +20,12 @@ shinyUI(fluidPage(
                            # Database selection
                            radioButtons("database", 
                                         "Select a Prostate Cancer Database:",
-                                        c("None"="none",
-                                          "Grasso"="grasso_GPL6480_feature",
+                                        c("Taylor (miRNAs)"="taylor_GPL8227_feature",
                                           "Taylor (genes)"="taylor_GPL10264_feature",
-                                          "Taylor (miRNAs)"="taylor_GPL8227_feature",
+                                          "Grasso"="grasso_GPL6480_feature",
                                           "Tomlins"= "tomlins_GPL2013_feature"
-                                          )
+                                          ),
+                                        selected="taylor_GPL8227_feature"
                                         ),
                            # Gene/miRNA selection
                            wellPanel(uiOutput("gnames_list")),
@@ -43,9 +43,18 @@ shinyUI(fluidPage(
                          mainPanel(
                            tags$p("Dynamic input value:"),
                            verbatimTextOutput("text"),
+                           
+                           tags$h4("Boxplot for expression values:"),
                            plotOutput("boxplot", height = "500px"),
-                           tags$p("Summary of the data:"),
-                           verbatimTextOutput("summary")
+                           
+                           tags$h4("Summary of the data:"),
+                           verbatimTextOutput("summary"),
+                           
+                           tags$h4("Summary of the linear model:"),
+                           verbatimTextOutput("lm"),
+                           
+                           tags$h4("ANOVA test: "),
+                           verbatimTextOutput("anova.test")
                            )
                          )
                       ),
