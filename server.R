@@ -1,6 +1,7 @@
 # PAQUETES Y SCRIPTS NECESARIOS
 library(shiny)
 library(RMySQL)
+library(genefilter)
 source("functions_library.R")
 source("connection.R")
 source("list.gnames.R")
@@ -13,7 +14,7 @@ con  <- getConnection()
 
 shinyServer(function(input, output) {
 
-  ## Gene list selection for SINGLE GENE ANALYSIS
+  ## Gene list selection for SINGLE GENE ANALYSIS ## 
   output$gnames_list <- renderUI ({
     if (is.null(input$database))
       return()
@@ -27,7 +28,7 @@ shinyServer(function(input, output) {
                                                   choices = list.gnames("grasso_GPL6480_feature")),
            "taylor_GPL10264_feature" = selectInput("gnames",
                                                    "Select gene name:",
-                                                   choices = list.gnames("taylor_GPL10264_feature")),
+                                                   choices = sign.gene.list("taylor_GPL10264")),
            "taylor_GPL8227_feature" = selectInput("gnames",
                                                   "Select miRNA name:",
                                                   choices = list.gnames("taylor_GPL8227_feature")),
