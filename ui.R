@@ -20,12 +20,10 @@ shinyUI(fluidPage(
                            # Database selection
                            radioButtons("database", 
                                         "Select a Prostate Cancer Database:",
-                                        c("Taylor (miRNAs)"="taylor_GPL8227_feature",
-                                          "Taylor (genes)"="taylor_GPL10264_feature",
-                                          "Grasso"="grasso_GPL6480_feature",
-                                          "Tomlins"= "tomlins_GPL2013_feature"
+                                        c("Taylor (miRNAs)"="taylor_miRNA",
+                                          "Taylor (genes)"="taylor_genes"
                                           ),
-                                        selected="taylor_GPL8227_feature"
+                                        selected="taylor_miRNA"
                                         ),
                            # Gene/miRNA selection
                            wellPanel(uiOutput("gnames_list")),
@@ -34,8 +32,8 @@ shinyUI(fluidPage(
                            wellPanel(radioButtons("group_by",
                                                   "Show results by:",
                                                   choices = c("Disease Status" = "disease_status",
-                                                              "Gleason Grade" = "gleason_grade_2",
-                                                              "Pathological Stage" = "pathological_stage"
+                                                              "Gleason Grade" = "gleason_grade_T",
+                                                              "TNM Stage" = "TNM"
                                                               )
                                                   )
                                      )
@@ -64,13 +62,13 @@ shinyUI(fluidPage(
              ###########################################
                       sidebarLayout(
                         sidebarPanel(
-                          radioButtons("database", 
-                                       "Prostate Cancer Database",
-                                       c("Grasso"="grasso",
-                                         "Taylor"="taylor",
-                                         "Tomlins"= "tomlins"
-                                       )
-                          )
+#                           radioButtons("database", 
+#                                        "Prostate Cancer Database",
+#                                        c("Grasso"="grasso",
+#                                          "Taylor"="taylor",
+#                                          "Tomlins"= "tomlins"
+#                                       )
+#                          )
                         ),
                         mainPanel(
                         )

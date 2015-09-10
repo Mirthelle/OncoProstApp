@@ -3,6 +3,7 @@
 ##   F U N C T I O N S  L I B R A R Y   4   O N C O N I R V A N A   ##
 ##                                                                  ##
 ######################################################################
+#source("connection.R")
 
 ###############################################
 ##              CBIND FUNCTION               ##
@@ -25,22 +26,55 @@ cbind.fill <- function(...){
 df_boxplot.build_df_boxplot <- function(result, group_by)  {
 #####################################
 # This frunction creates the needed #
-# data.frame for drawing a boxplot #
+# data.frame for drawing a boxplot  #
 #####################################
 
-  df<-result
+  df <- result
   # Important to define df$group_by as df[,group_by]
   colss <- unique(df[,group_by])
-  rm(df2)
+  #rm(df2)
   df2 <- data.frame(NA)     # empty data.frame to fill with data
-  for (i in 1:length(colss)) {
-    v <- df[which(df[,group_by]==colss[i]),c(2)]  # Pair gene with data expression in the same row
+  
+for (i in 1:length(colss)) {
+    v <- df[which(df[,group_by]==colss[i]), 2]  # Pair gene with data expression in the same row
     
-    df2 <- cbind.fill(df2, as.data.frame(v,colnames=colss[i])) # Fill new data.frame
+    df2 <- cbind.fill(df2, as.data.frame(v)) # Fill new data.frame
   }
   
-  df2 <- df2[,-1]    # Deleting first column with NA
-  
-  colnames(df2) <- colss  # Gene names as colnames
+  df2 <- df2[, colSums(is.na(df2)) != nrow(df2)]
+  colss2 <- colss[!is.na(colss)]
+  colnames(df2) <- colss2
+
   return(df2)
+}
+
+#####################################
+expr.matrix <- function(table) {
+#####################################
+# Obtains database expression table #
+# and converts it into an expression# 
+# matrix                            #
+#####################################
+  query_expr <- sprintf(paste0("SELECT * FROM ", table, "_expr"))
+  
+  e <- dbGetQuery(con, query_expr)
+  expr <- e$expr_value
+  
+  new_expr <- matrix(expr, length(unique(e$spot_id)), length(unique(e$gsm_id)), byrow=F)
+  rownames(new_expr) <- unique(e$spot_id)
+  colnames(new_expr) <- unique(e$gsm_id)
+  
+  return(new_expr)
+}
+
+#####################################
+list.gnames <- function(table) {
+#####################################
+# Selects gene names from a given   #
+# database and returns them as a    #
+# character vector.                 #
+#####################################
+  query_gnames <- sprintf(paste("SELECT distinct gene_symbol FROM ", table, " ORDER BY gene_symbol ASC"))
+  list_gnames <- dbGetQuery(con, query_gnames)
+  return(list_gnames[,1])
 }

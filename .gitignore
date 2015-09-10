@@ -6,3 +6,5 @@ Untitled.R
 connection.R
 
 .Rhistory
+
+*.DS_Store
