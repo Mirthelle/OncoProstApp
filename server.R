@@ -5,6 +5,18 @@ library("shiny")
 library("RMySQL")
 #library("genefilter")
 library("oligo")
+library("affy")
+library("affyPLM")
+library("limma")
+#library("MDA")
+library("survival")
+library("gplots")
+#library("hwriter")
+library("mclust")
+library("IDPmisc")
+library("lme4")
+library("coin")
+library("amap")
 source("functions_library.R")
 source("connection.R")
 
@@ -124,6 +136,34 @@ shinyServer(function(input, output) {
     table(colnames(df_bp()))
   })
   
+
+  ###########################################################################################################
+  ## 4. SURVIVAL ANALYSIS
+  output$survival <- renderPlot ({
+    p_query <- sprintf(paste0("SELECT * FROM ", input$database, "_pheno"))
+    p <- dbGetQuery(con, p_query)
+    
+    par(mfrow=c(3,1))
+    
+    N1 <- length(unique(p$disease_status))
+    plot(survfit(Surv(survival_time, event) ~ disease_status, data = p), 
+         main = "Survival according to disease status", lty = 1:N1, 
+         col = 1:N1, ylab = "Probability", xlab = "Survival Time in Months")
+    legend("bottomleft", legend=unique(p$disease_status), lty=1:N1, col=1:N1, horiz=FALSE, bty='n')
+
+    N2 <- length(unique(p$gleason_grade_T))
+    plot(survfit(Surv(survival_time, event) ~ gleason_grade_T, data = p), 
+         main = "Survival according to Gleason Grade", lty = 1:N2, 
+         col = 1:N2, ylab = "Probability", xlab = "Survival Time in Months")
+    legend("bottomleft", legend=unique(p$gleason_grade_T), lty=1:N2, col=1:N2, horiz=FALSE, bty='n')
+    
+    N3 <- length(unique(p$TNM))
+    plot(survfit(Surv(survival_time, event) ~ TNM, data = p), 
+         main = "Survival according to TNM stage", lty = 1:N3, 
+         col = 1:N3, ylab = "Probability", xlab = "Survival Time in Months")
+    legend("bottomleft", legend=unique(p$TNM), lty=1:N3, col=1:N3, horiz=FALSE, bty='n')
+    
+    })
 
  
 })

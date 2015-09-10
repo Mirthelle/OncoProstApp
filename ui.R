@@ -108,13 +108,14 @@ shinyUI(fluidPage(
                         sidebarPanel(
                           radioButtons("database", 
                                        "Prostate Cancer Database",
-                                       c("Grasso"="grasso",
-                                         "Taylor"="taylor",
-                                         "Tomlins"= "tomlins"
+                                       c("Taylor (miRNAs)"="taylor_miRNA",
+                                         "Taylor (genes)"="taylor_genes"
                                        )
                           )
                         ),
                         mainPanel(
+                          tags$h4("Kapplan-Meyer Survival Plots:"),
+                          plotOutput("survival", width="800px", height = "2000px")
                         )
                       )
                       )
