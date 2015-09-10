@@ -39,22 +39,30 @@ shinyUI(fluidPage(
                                      )
                            ),
                          mainPanel(
-                           tags$p("Dynamic input value:"),
-                           verbatimTextOutput("text"),
-                           
-                           tags$h4("Boxplot for expression values:"),
-                           plotOutput("boxplot", height = "500px"),
-                           
-                           tags$h4("Summary of the data:"),
-                           verbatimTextOutput("summary"),
-                           
-                           tags$h4("Summary of the linear model:"),
-                           verbatimTextOutput("lm"),
-                           
-                           tags$h4("ANOVA test: "),
-                           verbatimTextOutput("anova.test")
+                           tabsetPanel(
+                             tabPanel("Boxplot", 
+                                      tags$h4("Boxplot for expression values:"),
+                                      plotOutput("boxplot", height = "800px")
+                                      ),
+                             tabPanel("Data Summary",
+                                      tags$h4("Summary of the data:"),
+                                      verbatimTextOutput("summary")
+                                      ),
+                             tabPanel("Linear Model Summary",
+                                      tags$h4("Summary of the linear model:"),
+                                      verbatimTextOutput("lm")
+                                      ),
+                             tabPanel("ANOVA test",
+                                      tags$h4("ANOVA test: "),
+                                      verbatimTextOutput("anova.test")
+                                      ),
+                             tabPanel("tests",
+                                      tags$p("Dynamic input value:"),
+                                      verbatimTextOutput("text")
+                                      )
                            )
                          )
+                       )
                       ),
              
              ###########################################

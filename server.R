@@ -7,7 +7,6 @@ library("RMySQL")
 library("oligo")
 source("functions_library.R")
 source("connection.R")
-#source("list.gnames.R")
 
 #######################################
 ##     ONCOPROSTAPP SHINY CODE       ##
@@ -68,7 +67,7 @@ shinyServer(function(input, output) {
   # including all groups                            #
   ###################################################
     # Query for obtaining groups and expression values
-    queryBP <- paste0("SELECT gleason_grade_T, pathological_stage, expr_value FROM ", input$database, "_pheno, ", 
+    queryBP <- paste0("SELECT disease_status, gleason_grade_T, TNM, expr_value FROM ", input$database, "_pheno, ", 
                       input$database, "_expr WHERE geo_accession=gsm_id AND probe_id IN (SELECT probe_id FROM ", 
                       input$database, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
     expr_boxplot <- as.data.frame(dbGetQuery(con, queryBP))
@@ -96,7 +95,7 @@ shinyServer(function(input, output) {
 
   ## Drawing boxplot
   output$boxplot <- renderPlot ({
-  
+    par(mar = c(20, 4, 4, 2) + 0.1)
     boxplot(df_bp(), col=darkColors(ncol(df_bp())), main=paste(input$gnames, "by", input$group_by), 
             ylab="Expression values", las=2)
   })
@@ -114,14 +113,16 @@ shinyServer(function(input, output) {
   
   ## Anova summary  
   output$anova.test <- renderPrint({
-    fit <- lm(expr_value ~ gleason_grade_2 + pathological_stage, data=all_expr_df())
+    fit <- lm(expr_value ~ disease_status + gleason_grade_T + TNM, data=all_expr_df())
     anova(fit)
 
   })
   
-#   output$text <- renderPrint({
-#     df_bp()
-#   })
+  output$text <- renderPrint({
+    class(df_bp())
+    #attach(df_bp())
+    table(colnames(df_bp()))
+  })
   
 
  
