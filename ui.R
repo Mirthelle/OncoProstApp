@@ -70,15 +70,27 @@ shinyUI(fluidPage(
              ###########################################
                       sidebarLayout(
                         sidebarPanel(
-#                           radioButtons("database", 
-#                                        "Prostate Cancer Database",
-#                                        c("Grasso"="grasso",
-#                                          "Taylor"="taylor",
-#                                          "Tomlins"= "tomlins"
-#                                       )
-#                          )
+                           radioButtons("database", 
+                                        "Prostate Cancer Database",
+                                        c("Taylor (miRNAs)"="taylor_miRNA",
+                                          "Taylor (genes)"="taylor_genes"
+                                          )
+                          )
                         ),
                         mainPanel(
+                          tabsetPanel(
+                            tabPanel("table",
+                                     tags$h4("Genes differentially expressed: "),
+                                     tableOutput("difftable")
+                                     ),
+                            tabPanel("QQplots",
+                                     plotOutput("qqplots", width=800, height=900)
+                                     ),
+                            tabPanel("Histograms",
+                                     plotOutput("histpvalues", width=800, height=900)
+                                     )
+                            )
+                         
                         )
                       )
                       ),

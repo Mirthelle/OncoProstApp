@@ -60,8 +60,8 @@ expr.matrix <- function(table) {
   e <- dbGetQuery(con, query_expr)
   expr <- e$expr_value
   
-  new_expr <- matrix(expr, length(unique(e$spot_id)), length(unique(e$gsm_id)), byrow=F)
-  rownames(new_expr) <- unique(e$spot_id)
+  new_expr <- matrix(expr, length(unique(e$probe_id)), length(unique(e$gsm_id)), byrow=F)
+  rownames(new_expr) <- unique(e$probe_id)
   colnames(new_expr) <- unique(e$gsm_id)
   
   return(new_expr)
