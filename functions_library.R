@@ -1,8 +1,7 @@
-######################################################################
-##                                                                  ##
-##   F U N C T I O N S  L I B R A R Y   4   O N C O N I R V A N A   ##
-##                                                                  ##
-######################################################################
+##                                                                 ##
+##   F U N C T I O N S  L I B R A R Y   O N C O P R O S T A P P    ##
+##                                                                 ##
+#####################################################################
 #source("connection.R")
 
 ###############################################
@@ -74,7 +73,16 @@ list.gnames <- function(table) {
 # database and returns them as a    #
 # character vector.                 #
 #####################################
-  query_gnames <- sprintf(paste("SELECT distinct gene_symbol FROM ", table, " ORDER BY gene_symbol ASC"))
+  query_gnames <- sprintf(paste0("SELECT distinct gene_symbol FROM ", table, "_feature ORDER BY gene_symbol ASC"))
   list_gnames <- dbGetQuery(con, query_gnames)
   return(list_gnames[,1])
+}
+
+sign.list.gnames <- function(table) {
+  query_gnames <- paste0("SELECT distinct gene_symbol FROM ", table, "_feature")
+  list_gnames <- dbGetQuery(con, query_gnames)
+  list_small <- sample(list_gnames[,1], 1000)
+  list_small <- list_small[order(list_small)]
+  return(list_small)
+  #return(list_gnames[,1])
 }

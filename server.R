@@ -3,7 +3,6 @@
 #######################################
 library("shiny")
 library("RMySQL")
-#library("genefilter")
 library("oligo")
 library("affy")
 library("affyPLM")
@@ -11,14 +10,16 @@ library("limma")
 #library("MDA")
 library("survival")
 library("gplots")
-library("hwriter")
+#library("hwriter")
 library("mclust")
 library("IDPmisc")
 library("lme4")
 library("coin")
 library("amap")
+library("shinysky")
 source("functions_library.R")
 source("connection.R")
+load(file="data/taylor_genes_gnames.RData")
 
 #######################################
 ##     ONCOPROSTAPP SHINY CODE       ##
@@ -33,75 +34,16 @@ shinyServer(function(input, output) {
 ###########################################################################################################
 #### CREATING SELECTIONS
 ###########################################################################################################
-  ## Gene list selection for SINGLE GENE ANALYSIS ## 
-  output$gnames_list <- renderUI ({
-    if (is.null(input$database))
-      return()
-    
-    switch(input$database,
-           "none" = selectInput("gnames",
-                                "Select gene name:",
-                                choices = c()),
-           "taylor_genes" = selectInput("gnames",
-                                        "Select gene name:",
-                                        choices = sign.gene.list("taylor_genes")),
-           "taylor_miRNA" = selectInput("gnames",
-                                        "Select miRNA name:",
-                                        choices = list.gnames("taylor_miRNA_feature")),
-           )
-          
-  })
+
   
 ###########################################################################################################
 #### REACTIVE ENVIRONMENTS
 ###########################################################################################################
 
-  ###################################################
-  expr_df <- reactive ({
-  ###################################################
-  # Creates a data frame with all data needed for   #
-  # generating a boxplot of a single gene/miRNA     #
-  # grouped by GG, pathological stage or disease    #
-  # type.                                           #
-  ###################################################
-    # Query for obtaining groups and expression values
-    queryBP <- paste0("SELECT ", input$group_by, ", expr_value FROM ", input$database, "_pheno, ", 
-                      input$database, "_expr WHERE geo_accession=gsm_id AND probe_id IN (SELECT probe_id FROM ", 
-                      input$database, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
-    expr_boxplot <- as.data.frame(dbGetQuery(con, queryBP))
-    return(expr_boxplot)
-  })
-
-  ###################################################
-  all_expr_df <- reactive ({
-  ###################################################
-  # Obtains a data frame for a single gene/miRNA    #
-  # including all groups                            #
-  ###################################################
-    # Query for obtaining groups and expression values
-    queryBP <- paste0("SELECT disease_status, gleason_grade_T, TNM, expr_value FROM ", input$database, "_pheno, ", 
-                      input$database, "_expr WHERE geo_accession=gsm_id AND probe_id IN (SELECT probe_id FROM ", 
-                      input$database, "_feature WHERE gene_symbol LIKE '", input$gnames, "');")
-    expr_boxplot <- as.data.frame(dbGetQuery(con, queryBP))
-    return(expr_boxplot)
-  })
-
-  ###################################################
-  df_bp <- reactive ({
-  ###################################################
-  # Using expr_df() reactive environment builds the #
-  # final data frame to be used in creating the     #
-  # boxplot.                                        #
-  ###################################################
-      df_boxplot <- df_boxplot.build_df_boxplot(expr_df(), input$group_by)
-      df_boxplot <- df_boxplot[, order(colnames(df_boxplot))]
-      return(df_boxplot)
-  })
-
 eb <- reactive ({
   ## Getting expression and pheno data
-  e <- expr.matrix(input$database)
-  p_query <- sprintf(paste0("SELECT * FROM ", input$database, "_pheno"))
+  e <- expr.matrix(input$database2)
+  p_query <- sprintf(paste0("SELECT * FROM ", input$database2, "_pheno"))
   p <- dbGetQuery(con, p_query)
   
   # Comparisons using model specification
@@ -140,55 +82,77 @@ eb <- reactive ({
   
   ### Moderated t-test
   lmc <- contrasts.fit(lmf, cont.mat);
-  eb.0 <- eBayes(lmc);
-  return(eb.0)
+  eb <- eBayes(lmc);
+  return(eb)
 })
+
+data_corr <- reactive ({
+  e.gene <- expr.matrix("taylor_genes")
+  e.miRNA <- expr.matrix("taylor_miRNA")
+  
+  query <- "SELECT gene_symbol FROM taylor_genes_feature"
+  feat.genes <- dbGetQuery(con, query)
+  rownames(e.gene) <- feat.genes[,1]
+  
+  query2 <- "SELECT sample_id, geo_accession FROM taylor_genes_pheno"
+  query3 <- "SELECT sample_id, geo_accession FROM taylor_miRNA_pheno"
+  list_genes <- dbGetQuery(con, query2)
+  list_mirna <- dbGetQuery(con, query3)
+  
+  list_genes <- list_genes[order(list_genes$geo_accession),]
+  list_mirna <- list_mirna[order(list_mirna$geo_accession),]
+  
+  e.gene <- e.gene[, order(colnames(e.gene))]
+  e.miRNA <- e.miRNA[, order(colnames(e.miRNA))]
+  
+  colnames(e.gene) <- list_genes[,1]
+  colnames(e.miRNA) <-  list_mirna[,1]
+
+  data.gene <- t(t(e.gene[input$gene,]))
+  colnames(data.gene) <- 'expr_gene'
+  sample_g <- rownames(data.gene)
+  data.gene <- data.frame(cbind(sample_g, data.gene))
+  
+  data.mirna <- t(t(e.miRNA[input$miRNA,]))
+  colnames(data.mirna) <- 'expr_mirna'
+  sample_m <- rownames(data.mirna)
+  data.mirna <- data.frame(cbind(sample_m, data.mirna))
+  
+  data <- merge(data.mirna, data.gene, by.x = "sample_m", by.y = "sample_g")
+  data$expr_mirna <- as.numeric(data$expr_mirna)
+  data$expr_gene <- as.numeric(data$expr_gene)
+  return(data)
+})
+
 
 ###########################################################################################################
 #### OUTPUTS
-###########################################################################################################
+###########################################################################################################ç
 
 ###########################################################################################################
-## 1. SINGLE GENE/miRNA ANALYSIS
+## 2. CORRELATION BETWEEN GENES AND MIRNAS
+output$scatterplot <- renderPlot ({
+  data <- data_corr()
+  reg <- lm(data$expr_mirna~data$expr_gene)
+  plot(data$expr_mirna, data$expr_gene, type="p", 
+       main = paste("Correlation between ", input$gene, " and ", input$miRNA),
+       xlab = "miRNA expression values", ylab = "Gene expression value", col="darkblue")
+  abline(reg, col='red')
+})
 
-  ## Drawing boxplot
-  output$boxplot <- renderPlot ({
-    par(mar = c(20, 4, 4, 2) + 0.1)
-    boxplot(df_bp(), col=darkColors(ncol(df_bp())), main=paste(input$gnames, "by", input$group_by), 
-            ylab="Expression values", las=2)
-  })
-  
-  ## Descriptive summary
-  output$summary <- renderPrint({
-    summary(df_bp())
-  })
-  
-  ## T test summary
-  output$lm <- renderPrint ({
-    fit <- lm(expr_value ~ get(input$group_by), data=expr_df())
-    summary(fit)
-  })
-  
-  ## Anova summary  
-  output$anova.test <- renderPrint({
-    fit <- lm(expr_value ~ disease_status + gleason_grade_T + TNM, data=all_expr_df())
-    anova(fit)
+output$ttest <- renderText ({
+  data <- data_corr()
+  t.test(as.vector(data[,2]), as.vector(data[,3]))
+})
 
-  })
-  
-  output$text <- renderPrint({
-    class(df_bp())
-    #attach(df_bp())
-    table(colnames(df_bp()))
-  })
   
 ###########################################################################################################
 ## 2. DIFFERENTIAL EXPRESSION ANALYSIS
 
-output$difftable <- renderTable ({
-  results <- decideTests(eb(), method="global")
-  summary(results)
-})
+# output$difftable <- renderTable ({
+#   results <- decideTests(eb(), method="global")
+#   summary(results)
+# })
 
 output$qqplots <- renderPlot ({
   qqpval<-function(p, pch=16, col=4, ...)
@@ -218,8 +182,8 @@ output$histpvalues  <- renderPlot ({
   hist(eb$p.value[, 3], main='Metastasis');
 })
 
-output$restable <- renderDatatable ({
-  e <- expr.matrix(input$database)
+output$restable <- renderDataTable ({
+  e <- expr.matrix(input$database2)
   
   # Results table
   
@@ -270,7 +234,7 @@ output$restable <- renderDatatable ({
 ###########################################################################################################
 ## 4. SURVIVAL ANALYSIS
   output$survival <- renderPlot ({
-    p_query <- sprintf(paste0("SELECT * FROM ", input$database, "_pheno"))
+    p_query <- sprintf(paste0("SELECT * FROM ", input$database4, "_pheno"))
     p <- dbGetQuery(con, p_query)
     
     par(mfrow=c(3,1))
