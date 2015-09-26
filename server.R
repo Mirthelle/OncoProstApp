@@ -3,23 +3,13 @@
 #######################################
 library("shiny")
 library("RMySQL")
-library("oligo")
-library("affy")
-library("affyPLM")
 library("limma")
-#library("MDA")
 library("survival")
-library("gplots")
-#library("hwriter")
-library("mclust")
-library("IDPmisc")
-library("lme4")
-library("coin")
-library("amap")
-library("shinysky")
+library("parallel")
+#library("amap")
+#library("gplots")
 source("functions_library.R")
 source("connection.R")
-load(file="data/taylor_genes_gnames.RData")
 
 #######################################
 ##     ONCOPROSTAPP SHINY CODE       ##
@@ -40,13 +30,9 @@ shinyServer(function(input, output) {
 #### REACTIVE ENVIRONMENTS
 ###########################################################################################################
 
-eb <- reactive ({
-  ## Getting expression and pheno data
-  e <- expr.matrix(input$database2)
+pheno_diff <- reactive ({
   p_query <- sprintf(paste0("SELECT * FROM ", input$database2, "_pheno"))
   p <- dbGetQuery(con, p_query)
-  
-  # Comparisons using model specification
   
   p_2 <- na.omit(p) # Delete NA rows in pheno
   
@@ -62,13 +48,24 @@ eb <- reactive ({
   colnames(gg3)[19] <- "gg_group"
   
   p_3 <- rbind(gg2, gg3)
+  return(p_3)
+})  
   
-  design <- model.matrix(~ gg_group + LNI + metastasis, data=p_3);
+expr_diff <- reactive ({
+  e <- expr.matrix(input$database2)
+  p_3 <- pheno_diff()
   
-  # Delete NA rows for expressions
   e_3 <- e[,p_3$geo_accession]
+  return(e_3)
+  
+})  
+  
+eb <- reactive ({
+  e_3 <- expr_diff()
+  p_3 <- pheno_diff()
   
   # Contrasts
+  design <- model.matrix(~ gg_group + LNI + metastasis, data=p_3);
   lmf <- lmFit(e_3, design);
   betas <- coef(lmf);
   
@@ -84,6 +81,66 @@ eb <- reactive ({
   lmc <- contrasts.fit(lmf, cont.mat);
   eb <- eBayes(lmc);
   return(eb)
+})
+
+data_diff <- reactive ({
+  e_3 <- expr_diff()
+  p_3 <- pheno_diff()
+  eb <- eb()
+  
+  cont.mat <- cbind(
+    c(0, 1, 0, 0, 0),
+    c(0, 0, 1, 0, 0),
+    c(0, 0, 0, 0, 1)
+  )
+  
+  colnames(cont.mat) <- c("gleason_grade", "LNI", "Metastasis")
+  
+  ### Anotation
+  d_query <- paste0("SELECT * FROM ", input$database2, "_feature")
+  d <- dbGetQuery(con, d_query)
+  rownames(d)  <- d$probe_id
+
+  ### Some global descriptives
+  mns <- apply(e_3, 1, mean);
+  sds <- apply(e_3, 1, sd);
+  
+  sm <- mclapply(as.list(as.data.frame(t(e_3))), FUN=function(o)
+  {
+    r <- do.call(rbind, tapply(o, p_3$gg_group, function(o) c(mean(o), sd(o))));
+    rn <- rownames(r);
+    r <- as.vector(t(r));
+    names(r) <- paste(rep(rn, each=2), c(".mean", ".sd"), sep='');
+    r;
+  })
+  
+  sm <- do.call(rbind, sm);
+  
+  d <- cbind(d, global.mean=mns[rownames(d)], global.sd=sds[rownames(d)],
+             sm[rownames(d), ], sm[rownames(d), ]);
+  
+  ### Tests results
+  
+  for (j in 1:ncol(cont.mat))
+  {
+    dr <- topTable(eb, adjust="BH", number=nrow(e_3), coef=colnames(cont.mat)[j], confint=T);
+    rownames(dr) <- dr$probeset;
+    # dr <- dr[, colnames(dr)];
+#     colnames(dr) <- tolower(colnames(dr));
+#     colnames(dr)[colnames(dr) == 'logfc'] <- "beta";
+#     colnames(dr)[colnames(dr) == 'ci.025'] <- "beta.l95";
+#     colnames(dr)[colnames(dr) == 'ci.975'] <- "beta.u95";
+    colnames(dr) <- paste(colnames(dr), colnames(cont.mat)[j], sep='.');
+    d <- cbind(d, dr[rownames(d), ]);
+  }
+  
+#   colnames(d) <- gsub("p.value", "pval", colnames(d));
+#   colnames(d) <- gsub("p.val", "pval", colnames(d));
+  
+  ### Save Rdata and csv
+  # d <- d[order(d$adj.pval.gleason_grade), ];
+  ddiff.expr <- d;
+  return(ddiff.expr)
 })
 
 data_corr <- reactive ({
@@ -111,14 +168,14 @@ data_corr <- reactive ({
   data.gene <- t(t(e.gene[input$gene,]))
   colnames(data.gene) <- 'expr_gene'
   sample_g <- rownames(data.gene)
-  data.gene <- data.frame(cbind(sample_g, data.gene))
+  data.gene <- as.data.frame(cbind(sample_g, data.gene))
   
   data.mirna <- t(t(e.miRNA[input$miRNA,]))
   colnames(data.mirna) <- 'expr_mirna'
   sample_m <- rownames(data.mirna)
-  data.mirna <- data.frame(cbind(sample_m, data.mirna))
+  data.mirna <- as.data.frame(cbind(sample_m, data.mirna))
   
-  data <- merge(data.mirna, data.gene, by.x = "sample_m", by.y = "sample_g")
+  data <- as.data.frame(merge(data.mirna, data.gene, by.x = "sample_m", by.y = "sample_g"))
   data$expr_mirna <- as.numeric(data$expr_mirna)
   data$expr_gene <- as.numeric(data$expr_gene)
   return(data)
@@ -136,23 +193,23 @@ output$scatterplot <- renderPlot ({
   reg <- lm(data$expr_mirna~data$expr_gene)
   plot(data$expr_mirna, data$expr_gene, type="p", 
        main = paste("Correlation between ", input$gene, " and ", input$miRNA),
-       xlab = "miRNA expression values", ylab = "Gene expression value", col="darkblue")
+       xlab = "miRNA expression values", ylab = "Gene expression value")
   abline(reg, col='red')
 })
 
-output$ttest <- renderText ({
+output$ttest <- renderPrint ({
   data <- data_corr()
-  t.test(as.vector(data[,2]), as.vector(data[,3]))
+  t.test(data$expr_mirna, data$expr_gene)
 })
 
   
 ###########################################################################################################
 ## 2. DIFFERENTIAL EXPRESSION ANALYSIS
 
-# output$difftable <- renderTable ({
-#   results <- decideTests(eb(), method="global")
-#   summary(results)
-# })
+output$difftable <- renderTable ({
+  results <- decideTests(eb(), method="global")
+  summary(results)
+})
 
 output$qqplots <- renderPlot ({
   qqpval<-function(p, pch=16, col=4, ...)
@@ -182,54 +239,19 @@ output$histpvalues  <- renderPlot ({
   hist(eb$p.value[, 3], main='Metastasis');
 })
 
-output$restable <- renderDataTable ({
-  e <- expr.matrix(input$database2)
-  
-  # Results table
-  
-  ### Anotation
-  d_query <- sprintf(paste0("SELECT * FROM ", table, "_feature"))
-  d <- dbGetQuery(con, d_query)
-  rownames(d)  <- d$probe_id
-  
-  ### Some global descriptives
-  mns <- apply(e, 1, mean);
-  sds <- apply(e, 1, sd);
-  
-  sm <- mclapply(as.list(as.data.frame(t(e_2))), FUN=function(o)
-  {
-    r <- do.call(rbind, tapply(o, p_3$gg_group, function(o) c(mean(o), sd(o))));
-    rn <- rownames(r);
-    r <- as.vector(t(r));
-    names(r) <- paste(rep(rn, each=2), c(".mean", ".sd"), sep='');
-    r;
-  }, mc.cores=7);
-  sm <- do.call(rbind, sm);
-  
-  d <- cbind(d, global.mean=mns[rownames(d)], global.sd=sds[rownames(d)],
-             sm[rownames(d), ], sm[rownames(d), ]);
-  
-  ### Tests results
-  
-  for (j in 1:ncol(cont.mat))
-  {
-    dr <- topTable(eb.0, adjust="BH", number=nrow(e_2), coef=colnames(cont.mat)[j], confint=T);
-    rownames(dr) <- dr$probeset;
-    dr <- dr[, c("logFC", "CI.L", "CI.R", "t", "P.Value", "adj.P.Val", "B")];
-    colnames(dr) <- tolower(colnames(dr));
-    colnames(dr)[colnames(dr) == 'logfc'] <- "beta";
-    colnames(dr)[colnames(dr) == 'ci.025'] <- "beta.l95";
-    colnames(dr)[colnames(dr) == 'ci.975'] <- "beta.u95";
-    colnames(dr) <- paste(colnames(dr), colnames(cont.mat)[j], sep='.');
-    d <- cbind(d, dr[rownames(d), ]);
-  }
-  
-  colnames(d) <- gsub("p.value", "pval", colnames(d));
-  colnames(d) <- gsub("p.val", "pval", colnames(d));
-  
-  ### Save Rdata and csv
-  d <- d[order(d$adj.pval.gleason_grade), ];
+output$restable <- renderTable ({
+  data_diff()
 })
+
+output$downDiffTable <- downloadHandler(
+  filename = function() { 
+    paste(input$database2, '_diff_expr.csv', sep='') 
+  },
+  content = function(file) {
+    write.csv(data_diff(), file)
+  }
+)
+
 
 ###########################################################################################################
 ## 4. SURVIVAL ANALYSIS

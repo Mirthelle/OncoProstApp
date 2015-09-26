@@ -18,7 +18,7 @@ gene <- 'hsa-let-7a'
 queryBP <- paste0("SELECT ", group, ", expr_value FROM ", table, "_pheno, ", 
                   table, "_expr WHERE geo_accession=gsm_id AND probe_id IN (SELECT probe_id FROM ", 
                   table, "_feature WHERE gene_symbol LIKE '", gene, "');")
-expr_boxplot <- as.data.frame(dbGetQuery(con, queryBP))
+expr <- as.data.frame(dbGetQuery(con, queryBP))
 
 
 ### DF boxplot
@@ -83,5 +83,5 @@ plot(data$expr_mirna, data$expr_gene)
 abline(reg, col='red')
 
 cor(data$expr_mirna, data$expr_gene)
-t.test(data$expr_mirna, data$expr_gene)
+summary(t.test(data$expr_mirna, data$expr_gene))
 
